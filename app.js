@@ -3,23 +3,12 @@
 // MAIN APPLICATION JAVASCRIPT
 // =========================================================
 
-
 // =========================================================
-// SUPABASE CONNECTION
+// GOOGLE SHEETS BOOKING CONNECTION
 // =========================================================
 
-const SUPABASE_URL =
-  "https://qrqgwhmsbodvminpfrus.supabase.co";
-
-const SUPABASE_PUBLISHABLE_KEY =
-  "sb_publishable_lIiwPuX_4IdxqciNfHea5Q_G7-ykX2X";
-
-
-const supabaseClient =
-  window.supabase.createClient(
-    SUPABASE_URL,
-    SUPABASE_PUBLISHABLE_KEY
-  );
+const BOOKING_API =
+  "https://script.google.com/macros/s/AKfycbxGdQeJzOJcAvBjA0oj3ZBD29ERt66z9GcNQAN_niArxyy_VIV-2opMUhQjSbBNStaZzg/exec";
 
 
 // =========================================================
@@ -928,29 +917,58 @@ async function loadTimeSlots() {
       option.textContent =
         time;
 
+// =========================================================
+// LOAD BOOKED TIMES FROM GOOGLE SHEETS
+// =========================================================
 
-      bookingTimeEl.appendChild(
-        option
-      );
+async function loadTimeSlots() {
+  if (!bookingTimeEl) return;
 
+  const date = bookingDateEl?.value;
 
-      available =
-        true;
-
-    }
-
-  });
-
-
-  if (!available) {
-
-    resetTimeDropdown(
-      "Fully Booked"
-    );
-
+  if (!date) {
+    resetTimeDropdown("Select date first");
+    return;
   }
 
-}
+  if (isSunday(date)) {
+    resetTimeDropdown("Closed on Sundays");
+    return;
+  }
+
+  resetTimeDropdown("Checking availability...");
+
+  try {
+    const response = await fetch(
+      `${BOOKING_API}?date=${encodeURIComponent(date)}`
+    );
+
+    const result = await response.json();
+
+    if (!result.success || !Array.isArray(result.availableTimes)) {
+      resetTimeDropdown("Unable to load times");
+      return;
+    }
+
+    bookingTimeEl.innerHTML = "";
+
+    if (result.availableTimes.length === 0) {
+      resetTimeDropdown("Fully Booked");
+      return;
+    }
+
+    result.availableTimes.forEach(time => {
+      const option = document.createElement("option");
+      option.value = time;
+      option.textContent = time;
+      bookingTimeEl.appendChild(option);
+    });
+
+  } catch (error) {
+    console.error("Could not load booking times:", error);
+    resetTimeDropdown("Unable to load times");
+  }
+    }
 
 
 // =========================================================
@@ -1311,332 +1329,130 @@ function render() {
 
 
 // =========================================================
-// BOOKING
+// =========================================================
+// BOOKING — GOOGLE SHEETS + WHATSAPP
 // =========================================================
 
-const barberNumber =
-  "27671107595";
-
-
-bookBtn?.addEventListener(
-  "click",
-  async () => {
-
-    if (!isShopOpen()) {
-
-      alert(
-        "Booking is currently closed."
-      );
-
-
-      return;
-
-    }
-
-
-    const date =
-      bookingDateEl?.value;
-
-
-    const time =
-      bookingTimeEl?.value;
-
-
-    if (!date) {
-
-      alert(
-        "Select a date first."
-      );
-
-
-      return;
-
-    }
-
-
-    if (isSunday(date)) {
-
-      alert(
-        "Sorry, Jeff Cuts is closed on Sundays."
-      );
-
-
-      return;
-
-    }
-
-
-    if (!time ||
-        !timeSlots.includes(time)) {
-
-      alert(
-        "Please select an available time."
-      );
-
-
-      return;
-
-    }
-
-
-    if (
-      entries.length === 0
-    ) {
-
-      alert(
-        "Add a service first."
-      );
-
-
-      return;
-
-    }
-
-
-    const originalButtonText =
-      bookBtn.textContent;
-
-
-    bookBtn.disabled =
-      true;
-
-
-    bookBtn.textContent =
-      "Checking availability...";
-
-
-    try {
-
-      // =====================================================
-      // FINAL AVAILABILITY CHECK
-      // =====================================================
-
-      const {
-        data:
-          existingBooking,
-
-        error:
-          checkError
-
-      } =
-        await supabaseClient
-          .from("bookings")
-          .select("id")
-          .eq(
-            "booking_date",
-            date
-          )
-          .eq(
-            "booking_time",
-            time
-          )
-          .limit(1);
-
-
-      if (checkError) {
-
-        console.error(
-          "Booking check failed:",
-          checkError
-        );
-
-
-        alert(
-          "We couldn't check that time. Please try again."
-        );
-
-
-        await loadTimeSlots();
-
-
-        return;
-
-      }
-
-
-      if (
-        existingBooking &&
-        existingBooking.length > 0
-      ) {
-
-        alert(
-          "Sorry, that time has just been booked. Please choose another time."
-        );
-
-
-        await loadTimeSlots();
-
-
-        return;
-
-      }
-
-
-      // =====================================================
-      // CREATE BOOKING
-      // =====================================================
-
-      const {
-        error:
-          insertError
-
-      } =
-        await supabaseClient
-          .from("bookings")
-          .insert({
-
-            booking_date:
-              date,
-
-            booking_time:
-              time
-
-          });
-
-
-      if (insertError) {
-
-        console.error(
-          "Booking insert failed:",
-          insertError
-        );
-
-
-        if (
-          insertError.code ===
-          "23505"
-        ) {
-
-          alert(
-            "Sorry, that time was just booked by someone else. Please choose another time."
-          );
-
-        } else {
-
-          alert(
-            "We couldn't complete the booking. Please try again."
-          );
-
-        }
-
-
-        await loadTimeSlots();
-
-
-        return;
-
-      }
-
-
-      // =====================================================
-      // WHATSAPP SERVICES
-      // =====================================================
-
-      const services =
-        entries
-          .map(
-            item =>
-              `${item.service} (R${item.price})`
-          )
-          .join(", ");
-
-
-      const total =
-        entries.reduce(
-          (
-            sum,
-            item
-          ) =>
-            sum +
-            (
-              Number(
-                item.price
-              ) || 0
-            ),
-          0
-        );
-
-
-      const message =
-        encodeURIComponent(
-`
-Hi Jeff Cuts, I would like to book an appointment.
-
-Date: ${date}
-Time: ${time}
-Services: ${services}
-Total: R${total}
-`
-        );
-
-
-      // =====================================================
-      // OPEN WHATSAPP
-      // =====================================================
-
-      const whatsappURL =
-        `https://wa.me/${barberNumber}?text=${message}`;
-
-
-      window.open(
-        whatsappURL,
-        "_blank",
-        "noopener,noreferrer"
-      );
-
-
-      // =====================================================
-      // CLEAR CART
-      // =====================================================
-
-      entries = [];
-
-
-      render();
-
-
-      // =====================================================
-      // REFRESH TIMES
-      // =====================================================
-
+const barberNumber = "27671107595";
+
+bookBtn?.addEventListener("click", async () => {
+
+  if (!isShopOpen()) {
+    alert("Booking is currently closed.");
+    return;
+  }
+
+  const date = bookingDateEl?.value;
+  const time = bookingTimeEl?.value;
+
+  if (!date) {
+    alert("Select a date first.");
+    return;
+  }
+
+  if (isSunday(date)) {
+    alert("Jeff Cuts is closed on Sundays.");
+    return;
+  }
+
+  if (!time || !timeSlots.includes(time)) {
+    alert("Please select an available time.");
+    return;
+  }
+
+  if (entries.length === 0) {
+    alert("Add a service first.");
+    return;
+  }
+
+  const originalButtonText = bookBtn.textContent;
+
+  bookBtn.disabled = true;
+  bookBtn.textContent = "Booking...";
+
+  try {
+
+    const services = entries
+      .map(item => `${item.service} (R${item.price})`)
+      .join(", ");
+
+    const total = entries.reduce(
+      (sum, item) => sum + (Number(item.price) || 0),
+      0
+    );
+
+    // Reserve the time in Google Sheets.
+    const response = await fetch(BOOKING_API, {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8"
+      },
+      body: JSON.stringify({
+        date: date,
+        time: time,
+        service: services,
+        price: total
+      })
+    });
+
+    const result = await response.json();
+
+    if (!result.success) {
+      alert(result.message || "That time could not be booked. Please choose another.");
       await loadTimeSlots();
-
-
-      alert(
-        "Your appointment has been reserved successfully!"
-      );
-
-    } catch (error) {
-
-      console.error(
-        "Unexpected booking error:",
-        error
-      );
-
-
-      alert(
-        "Something went wrong while booking. Please try again."
-      );
-
-    } finally {
-
-      if (bookBtn) {
-
-        bookBtn.disabled =
-          !isShopOpen();
-
-
-        bookBtn.textContent =
-          isShopOpen()
-            ? "Book Appointment"
-            : "BOOKING CLOSED";
-
-      }
-
+      return;
     }
+
+    // Prepare the WhatsApp message.
+    const message = encodeURIComponent(
+      `Hi Jeff Cuts, I would like to book an appointment.\n\n` +
+      `Date: ${date}\n` +
+      `Time: ${time}\n` +
+      `Services: ${services}\n` +
+      `Total: R${total}`
+    );
+
+    const whatsappURL =
+      `https://wa.me/${barberNumber}?text=${message}`;
+
+    // Open WhatsApp after the booking is saved.
+    window.location.href = whatsappURL;
+
+    // Clear the cart.
+    entries = [];
+    render();
+
+    // Refresh available times.
+    await loadTimeSlots();
+
+  } catch (error) {
+
+    console.error("Booking error:", error);
+
+    alert(
+      "We couldn't confirm your booking. Please check your connection and try again. If you are unsure whether it was saved, check with Jeff before booking again."
+    );
+
+    await loadTimeSlots();
+
+  } finally {
+
+    bookBtn.disabled = !isShopOpen();
+
+    bookBtn.textContent = isShopOpen()
+      ? "Book Appointment"
+      : "BOOKING CLOSED";
 
   }
-);
+
+});
+
+      
+
+ 
+
+      
+
 
 
 // =========================================================
