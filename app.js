@@ -804,119 +804,6 @@ serviceEl?.addEventListener(
   updatePrice
 );
 
-
-// =========================================================
-// LOAD BOOKED TIMES
-// =========================================================
-
-async function loadTimeSlots() {
-
-  if (!bookingTimeEl) {
-    return;
-  }
-
-
-  const date =
-    bookingDateEl?.value;
-
-
-  if (!date) {
-
-    resetTimeDropdown(
-      "Select date first"
-    );
-
-    return;
-
-  }
-
-
-  if (isSunday(date)) {
-
-    resetTimeDropdown(
-      "Closed on Sundays"
-    );
-
-    return;
-
-  }
-
-
-  resetTimeDropdown(
-    "Checking availability..."
-  );
-
-
-  const {
-    data,
-    error
-  } =
-    await supabaseClient
-      .from("bookings")
-      .select("booking_time")
-      .eq(
-        "booking_date",
-        date
-      );
-
-
-  if (error) {
-
-    console.error(
-      "Could not load bookings:",
-      error
-    );
-
-
-    resetTimeDropdown(
-      "Unable to load times"
-    );
-
-
-    return;
-
-  }
-
-
-  const bookedTimes =
-    (data || [])
-      .map(
-        booking =>
-          String(
-            booking.booking_time
-          ).substring(0, 5)
-      );
-
-
-  bookingTimeEl.innerHTML =
-    "";
-
-
-  let available =
-    false;
-
-
-  timeSlots.forEach(time => {
-
-    if (
-      !bookedTimes.includes(
-        time
-      )
-    ) {
-
-      const option =
-        document.createElement(
-          "option"
-        );
-
-
-      option.value =
-        time;
-
-
-      option.textContent =
-        time;
-
 // =========================================================
 // LOAD BOOKED TIMES FROM GOOGLE SHEETS
 // =========================================================
@@ -968,7 +855,7 @@ async function loadTimeSlots() {
     console.error("Could not load booking times:", error);
     resetTimeDropdown("Unable to load times");
   }
-    }
+}
 
 
 // =========================================================
