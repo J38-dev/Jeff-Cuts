@@ -394,65 +394,35 @@ function isShopOpen() {
 
 function updateJeffCutsStatus() {
 
-  const isOpen =
-    isShopOpen();
-
+  const isOpen = isShopOpen();
 
   if (jcStatusText) {
-
     jcStatusText.textContent =
-      isOpen
-        ? "OPEN NOW"
-        : "CLOSED";
-
+      isOpen ? "OPEN NOW" : "CLOSED";
   }
 
-
   if (jcStatusDot) {
-
     jcStatusDot.classList.toggle(
       "jc-status-closed",
       !isOpen
     );
-
   }
 
-
+  // Customers can always prepare and submit advance bookings.
   if (bookBtn) {
-
-    bookBtn.disabled =
-      !isOpen;
-
-
-    bookBtn.textContent =
-      isOpen
-        ? "Book Appointment"
-        : "BOOKING CLOSED";
-
+    bookBtn.disabled = false;
+    bookBtn.textContent = "Book Appointment";
   }
-
 
   if (addBtn) {
-
-    addBtn.disabled =
-      !isOpen;
-
+    addBtn.disabled = false;
   }
 
-
   const bookingForm =
-    document.querySelector(
-      ".booking-form"
-    );
-
+    document.querySelector(".booking-form");
 
   if (bookingForm) {
-
-    bookingForm.classList.toggle(
-      "booking-closed",
-      !isOpen
-    );
-
+    bookingForm.classList.remove("booking-closed");
   }
 
 }
@@ -592,20 +562,21 @@ if (bookingDateEl) {
 // CHECK SUNDAY
 // =========================================================
 
-function isSunday(dateString) {
+// =========================================================
+// CHECK WEDNESDAY
+// =========================================================
+
+function isWednesday(dateString) {
 
   if (!dateString) return false;
 
+  const date = new Date(
+    `${dateString}T12:00:00`
+  );
 
-  const date =
-    new Date(
-      `${dateString}T12:00:00`
-    );
+  return date.getDay() === 3;
 
-
-  return date.getDay() === 0;
-
-}
+  }
 
 
 // =========================================================
@@ -818,10 +789,10 @@ async function loadTimeSlots() {
     return;
   }
 
-  if (isSunday(date)) {
-    resetTimeDropdown("Closed on Sundays");
-    return;
-  }
+  if (!isWednesday(date)) {
+  resetTimeDropdown("Appointments available Wednesdays only");
+  return;
+}
 
   resetTimeDropdown("Checking availability...");
 
@@ -881,11 +852,19 @@ bookingDateEl?.addEventListener(
     }
 
 
-    if (isSunday(selectedDate)) {
+    if (!isWednesday(selectedDate)) {
 
-      alert(
-        "Sorry, Jeff Cuts is closed on Sundays. Please choose another day."
-      );
+  alert(
+    "Jeff Cuts only accepts appointments for Wednesdays. Please choose a Wednesday."
+  );
+
+  this.value = "";
+
+  resetTimeDropdown("Select a Wednesday");
+
+  return;
+
+    }
 
 
       this.value =
@@ -916,16 +895,6 @@ addBtn?.addEventListener(
   "click",
   () => {
 
-    if (!isShopOpen()) {
-
-      alert(
-        "Booking is currently closed."
-      );
-
-
-      return;
-
-    }
 
 
     if (
@@ -1224,10 +1193,6 @@ const barberNumber = "27671107595";
 
 bookBtn?.addEventListener("click", async () => {
 
-  if (!isShopOpen()) {
-    alert("Booking is currently closed.");
-    return;
-  }
 
   const date = bookingDateEl?.value;
   const time = bookingTimeEl?.value;
@@ -1237,10 +1202,10 @@ bookBtn?.addEventListener("click", async () => {
     return;
   }
 
-  if (isSunday(date)) {
-    alert("Jeff Cuts is closed on Sundays.");
-    return;
-  }
+if (!isWednesday(date)) {
+  alert("Jeff Cuts only accepts Wednesday appointments.");
+  return;
+}
 
   if (!time || !timeSlots.includes(time)) {
     alert("Please select an available time.");
